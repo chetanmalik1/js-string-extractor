@@ -12,6 +12,7 @@ def main():
     parser = argparse.ArgumentParser(description="Fetch URLs and save contents to a single text file.")
     parser.add_argument('input_file', help="File containing list of URLs")
     parser.add_argument('output_file', help="Single output file to store all downloaded contents")
+    parser.add_argument('-e', '--ext', help="Filter by comma-separated extensions (e.g. .html,.js,.php)", default="")
     args = parser.parse_args()
 
     try:
@@ -28,6 +29,10 @@ def main():
 
     print(f"Starting fetch for {total} URLs...\n")
 
+    # Process allowed extensions
+    allowed_exts = tuple(ext.strip().lower() if ext.strip().startswith('.') else f".{ext.strip().lower()}" 
+                         for ext in args.ext.split(',') if ext.strip()) if args.ext else None
+
     # Headers to mimic a real browser
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
 
@@ -37,6 +42,12 @@ def main():
                 url = 'http://' + url
                 
             filename = extract_filename(url)
+            
+            if allowed_exts and not filename.lower().endswith(allowed_exts):
+                progress_msg = f"[{idx}/{total}] Skipped non-matching ext: {filename}"
+                sys.stdout.write(f"\r\033[K{progress_msg[:120]}")
+                sys.stdout.flush()
+                continue
             
             # Real-time progress update replacing the current line
             progress_msg = f"[{idx}/{total}] Fetching: {url} | Saving file: {filename}"
