@@ -1,72 +1,72 @@
-import os
+import sys
+import argparse
 import requests
 from urllib.parse import urlparse
 
-def sanitize_filename(url):
-    """Create a safe filename from the URL."""
-    parsed = urlparse(url)
-    safe_name = f"{parsed.netloc}{parsed.path}"
-    # Replace characters that are not alphanumeric, dot, underscore, or hyphen with underscore
-    safe_name = "".join([c if c.isalnum() or c in ['.', '_', '-'] else '_' for c in safe_name])
-    
-    # If the filename becomes empty, give it a default name
-    if not safe_name.strip('_'):
-        safe_name = "page_content"
-    return safe_name
+def extract_filename(url):
+    path = urlparse(url).path
+    filename = path.split('/')[-1]
+    return filename if filename else 'index.html'
 
-def crawl_and_save(input_file, output_dir):
-    """Reads URLs from input_file, fetches them, and saves to output_dir."""
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+def main():
+    parser = argparse.ArgumentParser(description="Fetch URLs and save contents to a single text file.")
+    parser.add_argument('input_file', help="File containing list of URLs")
+    parser.add_argument('output_file', help="Single output file to store all downloaded contents")
+    args = parser.parse_args()
 
-    with open(input_file, 'r') as f:
-        urls = [line.strip() for line in f if line.strip()]
-
-    if not urls:
-        print(f"No URLs found in {input_file}.")
+    try:
+        with open(args.input_file, 'r') as f:
+            urls = [line.strip() for line in f if line.strip()]
+    except Exception as e:
+        print(f"Error reading input file: {e}")
         return
 
-    for i, url in enumerate(urls):
-        print(f"Fetching [{i+1}/{len(urls)}]: {url}")
-        
-        # Add scheme if missing
-        if not url.startswith('http://') and not url.startswith('https://'):
-            url = 'http://' + url
+    total = len(urls)
+    if total == 0:
+        print("No URLs found in the input file.")
+        return
 
-        try:
-            # Masking as a standard browser to avoid basic bot blocks
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-            response = requests.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
+    print(f"Starting fetch for {total} URLs...\n")
 
-            # Generate a safe, unique filename
-            filename = sanitize_filename(url)
-            filename = f"{i+1}_{filename}.txt"  # Prepend index to guarantee uniqueness
-            filepath = os.path.join(output_dir, filename)
+    # Headers to mimic a real browser
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
 
-            with open(filepath, 'w', encoding='utf-8') as out_f:
-                # Top of the file includes the original URL link
-                out_f.write(f"=========================================\n")
-                out_f.write(f"Source URL: {url}\n")
-                out_f.write(f"=========================================\n\n")
-                out_f.write(response.text)
+    with open(args.output_file, 'w', encoding='utf-8') as out_f:
+        for idx, url in enumerate(urls, 1):
+            if not url.startswith('http://') and not url.startswith('https://'):
+                url = 'http://' + url
+                
+            filename = extract_filename(url)
             
-            print(f" -> Saved successfully to: {filepath}\n")
+            # Real-time progress update replacing the current line
+            progress_msg = f"[{idx}/{total}] Fetching: {url} | Saving file: {filename}"
+            # Ensure it fits nicely and clears previous long strings
+            sys.stdout.write(f"\r\033[K{progress_msg[:120]}") 
+            sys.stdout.flush()
 
-        except Exception as e:
-            print(f" -> Failed to fetch {url}: {e}\n")
+            try:
+                response = requests.get(url, headers=headers, timeout=10)
+                content = response.text
+
+                # Write to the single output file
+                out_f.write(f"{'/'*80}\n")
+                out_f.write(f"// URL: {url}\n")
+                out_f.write(f"// File Name: {filename}\n")
+                out_f.write(f"{'/'*80}\n\n")
+                out_f.write(content)
+                out_f.write("\n\n")
+                
+            except Exception as e:
+                # Still output an error block if it failed
+                out_f.write(f"{'!'*80}\n")
+                out_f.write(f"// URL: {url}\n")
+                out_f.write(f"// FAILED TO FETCH: {e}\n")
+                out_f.write(f"{'!'*80}\n\n")
+    
+    # Clear the progress line and finish
+    sys.stdout.write("\r\033[K")
+    sys.stdout.flush()
+    print(f"Done! All contents saved to {args.output_file}")
 
 if __name__ == "__main__":
-    input_urls_file = "urls.txt"
-    output_directory = "downloaded_pages"
-    
-    # Generate a dummy input file if it does not exist
-    if not os.path.exists(input_urls_file):
-        print(f"[!] Input file '{input_urls_file}' not found.")
-        print(f"[*] Creating a sample '{input_urls_file}' for you...")
-        with open(input_urls_file, 'w') as f:
-            f.write("https://example.com\n")
-            f.write("https://code.jquery.com/jquery-3.6.0.min.js\n")
-        print(f"[*] Please add your target URLs (one per line) to '{input_urls_file}' and run the script again.")
-    else:
-        crawl_and_save(input_urls_file, output_directory)
+    main()
