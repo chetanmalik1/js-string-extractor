@@ -13,11 +13,17 @@ def main():
     parser.add_argument('input_file', help="File containing list of URLs")
     parser.add_argument('output_file', help="Single output file to store all downloaded contents")
     parser.add_argument('-e', '--ext', help="Filter by comma-separated extensions (e.g. .html,.js,.php)", default="")
+    parser.add_argument('--start', type=int, help="Line number to start from (1-indexed)", default=1)
+    parser.add_argument('--end', type=int, help="Line number to end at (1-indexed, inclusive)", default=None)
     args = parser.parse_args()
 
     try:
         with open(args.input_file, 'r') as f:
-            urls = [line.strip() for line in f if line.strip()]
+            all_urls = [line.strip() for line in f if line.strip()]
+            
+        start_idx = max(0, args.start - 1)
+        end_idx = args.end if args.end is not None else len(all_urls)
+        urls = all_urls[start_idx:end_idx]
     except Exception as e:
         print(f"Error reading input file: {e}")
         return
